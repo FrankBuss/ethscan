@@ -1,0 +1,9 @@
+[package]
+name = "ethscan"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+web3 = "0.17.0"
+tokio = "1.14.0"
+chrono = "0.4.19"
