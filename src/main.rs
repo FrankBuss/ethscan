@@ -179,11 +179,11 @@ async fn main() -> web3::Result<()> {
 
         // test current block, if in filtered time span
         let time = block.timestamp.as_u64() as i64;
-        if time < filter.date_from || time > filter.date_to {
-            continue;
-        }
         if time < filter.date_from {
             break;
+        }
+        if time < filter.date_from || time > filter.date_to {
+            continue;
         }
         let (count, sum) = test_block(&web3, &block, None, &filter).await?;
         count_all += count;
