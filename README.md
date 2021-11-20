@@ -3,7 +3,7 @@
 
 This is a Rust command line program for scanning the Ethereum blockchain for USDT transfers within a time span and amount span. To run it, first install Rust, e.g. from https://rustup.rs.
 
-Then you can build it with `cargo build --release`. Then you can run it like this:
+You can build the program with `cargo build --release`. Then you can run it like this:
 
 ```
 ./target/release/ethscan http://localhost:8545 2021-11-20 2021-11-21 100000 1000000000
@@ -29,6 +29,25 @@ time (UTC),amount (USDT),transaction
 ...
 ```
 
-It needs a fully synced local installation of the geth node, or you can use a service like https://quiknode.pro as well for the RPC interface, but this can be very slow and expensive, because it has to make potentially millions of API requests, depending on the filter period.
+It needs a fully synced local installation of the `geth` node, or you can use a service like https://quiknode.pro as well for the RPC interface, but this can be very slow and expensive, because it has to make potentially millions of API requests, depending on the filter period.
 
-TODO: currently it scans all blocks backwards, starting from the latest block. This could be optimized with binary searching for the start block, if the time span to test is long ago. And it could be enhanced to allow other evaluations as well, for example eth transactions, or other tokens.
+## geth setup
+
+First install `geth`, as described here: https://geth.ethereum.org/docs/install-and-build/installing-geth and do a full sync of the blockchain. See the manual for details, but you can do it like this:
+
+```
+./geth --syncmode "fast" --cache 1024
+```
+
+Depending on your computer and internet connection, this might need a few days, and about 400 GiB on your harddisk. For best performance, use a SSD for the data directory location (default location depends on the operating system, or can be specified with a command line argument).
+
+For using it from the Rust application, you need to run it with enabled RPC service:
+
+```
+./geth --cache 1024 --http --http.port 8545 --http.addr localhost --http.api personal,eth,net --http.corsdomain '*'
+```
+
+This listens to incoming connections from localhost, so the Rust application needs to on the same computer. You could also bind it to the address 0.0.0.0 to access it from any computer, but this might be a security problem.
+
+## TODO
+Currently it scans all blocks backwards, starting from the latest block. This could be optimized with binary searching for the start block, if the time span to test is long ago. And it could be enhanced to allow other evaluations as well, for example ether transactions, or other tokens.

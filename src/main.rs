@@ -16,8 +16,8 @@ struct Filter {
 
 #[derive(Debug, Copy, Clone)]
 struct Transfer {
-  pub amount: f64,
-  pub tx_hash: H256,
+    pub amount: f64,
+    pub tx_hash: H256,
 }
 
 fn timestamp_to_utc(timestamp: i64) -> String {
@@ -65,8 +65,8 @@ async fn test_transaction(
             continue;
         }
         let transfer = Transfer {
-          amount: amount,
-          tx_hash: tx.hash,
+            amount: amount,
+            tx_hash: tx.hash,
         };
         result.push(transfer);
     }
@@ -96,7 +96,7 @@ async fn test_block(
         for transfer in transfers {
             println!(
                 "{},{:.2},https://etherscan.io/tx/0x{:x}",
-                time_string, transfer.amount, tx.hash, 
+                time_string, transfer.amount, tx.hash,
             );
             count += 1;
             sum += transfer.amount;
@@ -152,15 +152,23 @@ async fn main() -> web3::Result<()> {
     loop {
         let block = web3.eth().block_with_txs(block_id).await?.unwrap();
 
+        let block_number = block.number.unwrap().as_u64();
+        if block_number == 0 {
+            eprintln!("");
+            eprintln!("Error, unexpected block number 0! Is geth fully synced?");
+            process::exit(1);
+        }
+
         // stop at genesis block
-        let id = block.number.unwrap().as_u64();
-        if id == 1 {
+        println!("block_number: {:?}", block_number);
+        if block_number == 1 {
             break;
         }
 
         // previous block
-        block_id = BlockId::Number((id - 1).into());
+        block_id = BlockId::Number((block_number - 1).into());
 
+        // test current block, if in filtered time span
         let time = block.timestamp.as_u64() as i64;
         if time < filter.date_from || time > filter.date_to {
             continue;
