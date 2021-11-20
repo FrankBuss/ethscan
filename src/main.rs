@@ -26,9 +26,15 @@ fn timestamp_to_utc(timestamp: i64) -> String {
     datetime.format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
-fn date_to_timestamp(date: &String) -> i64 {
-    let date = NaiveDate::parse_from_str(date, "%Y-%m-%d").unwrap();
-    date.and_time(NaiveTime::from_hms(0, 0, 0)).timestamp()
+fn date_to_timestamp(date_string: &String) -> i64 {
+    if let Ok(date) = NaiveDate::parse_from_str(date_string, "%Y-%m-%d") {
+        date.and_time(NaiveTime::from_hms(0, 0, 0)).timestamp()
+    } else {
+        exit_with_message(&format!(
+            "{} is a wrong date format. Use YYYY-MM-DD, for example 2021-01-21.",
+            date_string
+        ));
+    }
 }
 
 fn data_to_usdt(data: &Bytes) -> f64 {
@@ -105,6 +111,12 @@ async fn test_block(
     Ok((count, sum))
 }
 
+fn exit_with_message(message: &str) -> ! {
+    eprintln!();
+    eprintln!("Error: {}", message);
+    process::exit(1);
+}
+
 #[tokio::main]
 async fn main() -> web3::Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -121,8 +133,8 @@ async fn main() -> web3::Result<()> {
     }
 
     let url = &args[1];
-    let usdt_contract = "dac17f958d2ee523a2206206994597c13d831ec7"
-        .parse::<H160>()
+    let usdt_contract: H160 = "0xdac17f958d2ee523a2206206994597c13d831ec7"
+        .parse()
         .unwrap();
     let filter = Filter {
         date_from: date_to_timestamp(&args[2]),
@@ -154,13 +166,10 @@ async fn main() -> web3::Result<()> {
 
         let block_number = block.number.unwrap().as_u64();
         if block_number == 0 {
-            eprintln!("");
-            eprintln!("Error, unexpected block number 0! Is geth fully synced?");
-            process::exit(1);
+            exit_with_message("Unexpected block number 0. Is geth fully synced?");
         }
 
         // stop at genesis block
-        println!("block_number: {:?}", block_number);
         if block_number == 1 {
             break;
         }

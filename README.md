@@ -1,7 +1,14 @@
 # ethscan
-## Scans the Ethereum network for USDT ERC-20 token transfer transactions
 
-This is a Rust command line program for scanning the Ethereum blockchain for USDT transfers within a time span and amount span. To run it, first install Rust, e.g. from https://rustup.rs.
+This is a Rust command line program for scanning the Ethereum blockchain for USDT transfers within a time span and amount span.
+
+## prerequisites
+
+It needs a fully synced local installation of the `geth` node for the web3 compatible Rust library. Or you can use a service like https://quiknode.pro for the RPC interface, but this can be very slow and expensive, because it has to make potentially millions of API requests, depending on the filter period.
+
+## how to compile and run the program
+
+First install Rust, e.g. from https://rustup.rs.
 
 You can build the program with `cargo build --release`. Then you can run it like this:
 
@@ -29,25 +36,30 @@ time (UTC),amount (USDT),transaction
 ...
 ```
 
-It needs a fully synced local installation of the `geth` node, or you can use a service like https://quiknode.pro as well for the RPC interface, but this can be very slow and expensive, because it has to make potentially millions of API requests, depending on the filter period.
+The output can be redirected to a CSV file for using it with other programs, for example a spreadsheet program or gnuplot.
+
+Scientific number notation for the amount range is also supported. For example use `0 1e42` to get all transactions within the specified time period.
+
+Scanning back a week from the current date needs about half an hour, with a local connection to a `geth` node.
 
 ## geth setup
 
-First install `geth`, as described here: https://geth.ethereum.org/docs/install-and-build/installing-geth and do a full sync of the blockchain. See the manual for details, but you can do it like this:
+First install `geth`, as described here: https://geth.ethereum.org/docs/install-and-build/installing-geth and do a full sync of the blockchain. See the `geth` manual for details, but you can do it like this:
 
 ```
-./geth --syncmode "fast" --cache 1024
+geth --syncmode "fast" --cache 1024
 ```
 
-Depending on your computer and internet connection, this might need a few days, and about 400 GiB on your harddisk. For best performance, use a SSD for the data directory location (default location depends on the operating system, or can be specified with a command line argument).
+Depending on your computer and internet connection, this might need a few days, 1 GiB RAM for the cache, and about 500 GiB on your harddisk for storing the blockchain. For best performance, use a SSD for the data directory location (default location depends on the operating system, or can be specified with a command line argument).
 
-For using it from the Rust application, you need to run it with enabled RPC service:
+For using it from the Rust application, you need to run it with RPC service enabled:
 
 ```
-./geth --cache 1024 --http --http.port 8545 --http.addr localhost --http.api personal,eth,net --http.corsdomain '*'
+geth --cache 1024 --http --http.port 8545 --http.addr localhost --http.api personal,eth,net --http.corsdomain '*'
 ```
 
-This listens to incoming connections from localhost, so the Rust application needs to on the same computer. You could also bind it to the address 0.0.0.0 to access it from any computer, but this might be a security problem.
+This listens to incoming connections from localhost, so the Rust application needs to run on the same computer. You could also bind it to the address 0.0.0.0 to access it from any computer, but this might be a security problem.
 
 ## TODO
-Currently it scans all blocks backwards, starting from the latest block. This could be optimized with binary searching for the start block, if the time span to test is long ago. And it could be enhanced to allow other evaluations as well, for example ether transactions, or other tokens.
+
+Currently it scans all blocks backwards, starting from the latest block. This could be optimized with binary searching for the start block, if the time span to test is long ago. And it could be enhanced to allow other evaluations as well, for example Ether transactions, or other ETC-20 tokens.
