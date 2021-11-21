@@ -2,8 +2,8 @@ use chrono::prelude::*;
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime};
 use std::{env, process};
 use web3::transports::Http;
-use web3::types::*;
 use web3::Web3;
+use web3::{signing, types::*};
 
 #[derive(Debug, Copy, Clone)]
 struct Filter {
@@ -11,12 +11,15 @@ struct Filter {
     pub date_to: i64,
     pub amount_from: f64,
     pub amount_to: f64,
-    pub contract: H160,
+    pub contract_address: H160,
+    pub topic: H256,
 }
 
 #[derive(Debug, Copy, Clone)]
 struct Transfer {
     pub amount: f64,
+    pub from_address: H160,
+    pub to_address: H160,
     pub tx_hash: H256,
 }
 
@@ -41,7 +44,7 @@ fn data_to_usdt(data: &Bytes) -> f64 {
     (U256::from_big_endian(&data.0[16..]).as_u128() as f64) / 1000000.0
 }
 
-/// test if a transaction matches the filter, and then return the transfer information
+/// Test if a transaction matches the filter, and then return the transfer information.
 async fn test_transaction(
     web3: &Web3<Http>,
     tx: &Transaction,
@@ -49,7 +52,7 @@ async fn test_transaction(
 ) -> web3::Result<Vec<Transfer>> {
     let mut result = Vec::new();
     if let Some(to) = tx.to {
-        if to != filter.contract {
+        if to != filter.contract_address {
             return Ok(result);
         }
     } else {
@@ -58,20 +61,25 @@ async fn test_transaction(
     let receipt = web3.eth().transaction_receipt(tx.hash).await?.unwrap();
     for log in receipt.logs {
         let topics = log.topics;
-        if log.address != filter.contract {
+        if log.address != filter.contract_address {
             continue;
         }
         if topics.len() != 3 {
             continue;
         }
-        //let from = H160::from_slice(&topics[1].0[12..]);
-        //let to = H160::from_slice(&topics[2].0[12..]);
+        if topics[0] != filter.topic {
+            continue;
+        }
+        let from = H160::from_slice(&topics[1].0[12..]);
+        let to = H160::from_slice(&topics[2].0[12..]);
         let amount = data_to_usdt(&log.data);
         if amount < filter.amount_from || amount > filter.amount_to {
             continue;
         }
         let transfer = Transfer {
             amount: amount,
+            from_address: from,
+            to_address: to,
             tx_hash: tx.hash,
         };
         result.push(transfer);
@@ -80,12 +88,12 @@ async fn test_transaction(
 }
 
 /**
-Test all transactions of a block, or optionally only the specified transaction, and print the transfer information. Return the number of transactions and amount sum.
+Test all transactions of a block, and print the transfer information.
+Return the number of transactions and amount sum.
 */
 async fn test_block(
     web3: &Web3<Http>,
     block: &Block<Transaction>,
-    tx_hash: Option<H256>,
     filter: &Filter,
 ) -> web3::Result<(u64, f64)> {
     let time = block.timestamp.as_u64() as i64;
@@ -93,16 +101,15 @@ async fn test_block(
     let mut sum: f64 = 0.0;
     let mut count: u64 = 0;
     for tx in &block.transactions {
-        if let Some(tx_hash) = tx_hash {
-            if tx_hash != tx.hash {
-                continue;
-            }
-        }
         let transfers = test_transaction(web3, tx, filter).await?;
         for transfer in transfers {
             println!(
-                "{},{:.2},https://etherscan.io/tx/0x{:x}",
-                time_string, transfer.amount, tx.hash,
+                "{},{:.6},0x{:x},0x{:x},0x{:x}",
+                time_string,
+                transfer.amount,
+                transfer.from_address,
+                transfer.to_address,
+                transfer.tx_hash
             );
             count += 1;
             sum += transfer.amount;
@@ -117,7 +124,10 @@ fn exit_with_message(message: &str) -> ! {
     process::exit(1);
 }
 
-/// Search for the block with a timestamp immediately after the specified time, or return the latest block number.
+/**
+Search for the block with a timestamp immediately after the specified time,
+or return the latest block number.
+*/
 async fn search_block_number(web3: &Web3<Http>, time: i64) -> web3::Result<u64> {
     let max_block_number: u64 = web3.eth().block_number().await?.as_u64();
 
@@ -166,12 +176,16 @@ async fn main() -> web3::Result<()> {
     let usdt_contract: H160 = "0xdac17f958d2ee523a2206206994597c13d831ec7"
         .parse()
         .unwrap();
+    let transfer_topic: H256 =
+        signing::keccak256("Transfer(address,address,uint256)".as_bytes()).into();
+
     let filter = Filter {
         date_from: date_to_timestamp(&args[2]),
         date_to: date_to_timestamp(&args[3]),
         amount_from: args[4].parse::<f64>().unwrap(),
         amount_to: args[5].parse::<f64>().unwrap(),
-        contract: usdt_contract,
+        contract_address: usdt_contract,
+        topic: transfer_topic,
     };
 
     println!("search filter:");
@@ -191,12 +205,11 @@ async fn main() -> web3::Result<()> {
 
     // search all blocks, starting from this block
     let mut block_id = BlockId::Number(block_number.into());
-    println!("time (UTC),amount (USDT),transaction");
+    println!("time (UTC),amount (USDT),from address,to address,transaction");
     let mut count_all: u64 = 0;
     let mut sum_all: f64 = 0.0;
     loop {
         let block = web3.eth().block_with_txs(block_id).await?.unwrap();
-
         let block_number = block.number.unwrap().as_u64();
         if block_number == 0 {
             exit_with_message("Unexpected block number 0. Is geth fully synced?");
@@ -219,7 +232,7 @@ async fn main() -> web3::Result<()> {
         if time > filter.date_to {
             continue;
         }
-        let (count, sum) = test_block(&web3, &block, None, &filter).await?;
+        let (count, sum) = test_block(&web3, &block, &filter).await?;
         count_all += count;
         sum_all += sum;
     }
