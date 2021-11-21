@@ -117,6 +117,36 @@ fn exit_with_message(message: &str) -> ! {
     process::exit(1);
 }
 
+/// Search for the block with a timestamp immediately after the specified time, or return the latest block number.
+async fn search_block_number(web3: &Web3<Http>, time: i64) -> web3::Result<u64> {
+    let max_block_number: u64 = web3.eth().block_number().await?.as_u64();
+
+    let mut min: u64 = 0;
+    let mut max: u64 = max_block_number;
+    let mut middle = max;
+    while min < max {
+        middle = (min + max) / 2;
+        let block = web3
+            .eth()
+            .block(BlockId::Number(middle.into()))
+            .await?
+            .unwrap();
+        let block_time = block.timestamp.as_u64() as i64;
+        if block_time < time {
+            min = middle + 1;
+        } else if block_time > time {
+            max = middle - 1;
+        } else {
+            break;
+        }
+    }
+    middle += 1;
+    if middle > max_block_number {
+        middle = max_block_number;
+    }
+    Ok(middle)
+}
+
 #[tokio::main]
 async fn main() -> web3::Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -156,8 +186,11 @@ async fn main() -> web3::Result<()> {
     let transport = web3::transports::Http::new(url)?;
     let web3 = web3::Web3::new(transport);
 
-    // search all blocks, starting from the latest
-    let mut block_id = BlockId::Number(BlockNumber::Latest);
+    // search first block after the "to" time
+    let block_number = search_block_number(&web3, filter.date_to).await?;
+
+    // search all blocks, starting from this block
+    let mut block_id = BlockId::Number(block_number.into());
     println!("time (UTC),amount (USDT),transaction");
     let mut count_all: u64 = 0;
     let mut sum_all: f64 = 0.0;
@@ -179,10 +212,11 @@ async fn main() -> web3::Result<()> {
 
         // test current block, if in filtered time span
         let time = block.timestamp.as_u64() as i64;
+        //eprintln!("{}", timestamp_to_utc(time));
         if time < filter.date_from {
             break;
         }
-        if time < filter.date_from || time > filter.date_to {
+        if time > filter.date_to {
             continue;
         }
         let (count, sum) = test_block(&web3, &block, None, &filter).await?;

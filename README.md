@@ -62,4 +62,4 @@ This listens to incoming connections from localhost, so the Rust application nee
 
 ## TODO
 
-Currently it scans all blocks backwards, starting from the latest block. This could be optimized with binary searching for the start block, if the time span to test is long ago. And it could be enhanced to allow other evaluations as well, for example Ether transactions, or other ETC-20 tokens.
+It could be enhanced to allow other evaluations as well, for example Ether transactions, or other ETC-20 tokens or NFTs.
