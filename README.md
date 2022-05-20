@@ -66,4 +66,4 @@ This listens to incoming connections from localhost, so the Rust application nee
 
 ## TODO
 
-It could be enhanced to allow other evaluations as well, for example Ether transactions, or other ETC-20 tokens or NFTs.
+It could be enhanced to allow other evaluations as well, for example Ether transactions, or other ERC-20 tokens or NFTs.
